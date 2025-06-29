@@ -1,0 +1,378 @@
+import React, { useState, useRef } from 'react';
+import axios from 'axios';
+import { useReactToPrint } from 'react-to-print';
+import { 
+  Button, TextField, Box, Paper, Typography, 
+  List, ListItem, ListItemText, IconButton,
+  Divider, Alert, Container, CssBaseline
+} from '@mui/material';
+import { 
+  Add as AddIcon, 
+  Delete as DeleteIcon, 
+  FileUpload as FileUploadIcon,
+  Save as SaveIcon,
+  Download as DownloadIcon,
+  AutoFixHigh as AutoFixHighIcon
+} from '@mui/icons-material';
+
+const API_BASE_URL = 'http://localhost:8000';
+
+function App() {
+  const [resume, setResume] = useState({
+    name: '',
+    experience: [],
+    education: [],
+    skills: [],
+    summary: ''
+  });
+  const [newExperience, setNewExperience] = useState('');
+  const [newEducation, setNewEducation] = useState('');
+  const [newSkill, setNewSkill] = useState('');
+  const [file, setFile] = useState(null);
+  const [message, setMessage] = useState('');
+  const [error, setError] = useState('');
+  const resumeRef = useRef();
+
+  const handleFileChange = (e) => {
+    setFile(e.target.files[0]);
+  };
+
+  const handleUpload = async () => {
+    if (!file) {
+      setError('Please select a file');
+      return;
+    }
+    
+    const formData = new FormData();
+    formData.append('file', file);
+    
+    try {
+      const response = await axios.post(`${API_BASE_URL}/upload-resume`, formData);
+      setResume(response.data.content);
+      setMessage('Resume uploaded and parsed successfully');
+      setError('');
+    } catch (err) {
+      setError('Failed to upload resume');
+      console.error(err);
+    }
+  };
+
+  const handleEnhanceSection = async (section) => {
+    try {
+      const response = await axios.post(`${API_BASE_URL}/ai-enhance`, {
+        section,
+        content: resume[section] || ''
+      });
+      
+      setResume({
+        ...resume,
+        [section]: response.data.enhanced_content
+      });
+      setMessage(`Section "${section}" enhanced successfully`);
+      setError('');
+    } catch (err) {
+      setError('Failed to enhance section');
+      console.error(err);
+    }
+  };
+
+  const handleSaveResume = async () => {
+    try {
+      await axios.post(`${API_BASE_URL}/save-resume`, resume);
+      setMessage('Resume saved successfully');
+      setError('');
+    } catch (err) {
+      setError('Failed to save resume');
+      console.error(err);
+    }
+  };
+
+  const handleAddExperience = () => {
+    if (newExperience.trim()) {
+      setResume({
+        ...resume,
+        experience: [...resume.experience, newExperience]
+      });
+      setNewExperience('');
+    }
+  };
+
+  const handleAddEducation = () => {
+    if (newEducation.trim()) {
+      setResume({
+        ...resume,
+        education: [...resume.education, newEducation]
+      });
+      setNewEducation('');
+    }
+  };
+
+  const handleAddSkill = () => {
+    if (newSkill.trim()) {
+      setResume({
+        ...resume,
+        skills: [...resume.skills, newSkill]
+      });
+      setNewSkill('');
+    }
+  };
+
+  const handleRemoveItem = (section, index) => {
+    const updatedItems = [...resume[section]];
+    updatedItems.splice(index, 1);
+    setResume({
+      ...resume,
+      [section]: updatedItems
+    });
+  };
+
+  const handleDownload = useReactToPrint({
+    content: () => resumeRef.current,
+    pageStyle: `
+      @page { size: A4; margin: 1cm; }
+      @media print { 
+        body { -webkit-print-color-adjust: exact; }
+        .no-print { display: none; }
+      }
+    `,
+    onAfterPrint: () => setMessage('Resume downloaded successfully')
+  });
+
+  return (
+    <>
+      <CssBaseline />
+      <Container maxWidth="md" sx={{ my: 4 }}>
+        <Typography variant="h3" component="h1" gutterBottom>
+          Resume Editor
+        </Typography>
+        
+        <Box sx={{ mt: 3 }}>
+          {message && <Alert severity="success" sx={{ mb: 2 }}>{message}</Alert>}
+          {error && <Alert severity="error" sx={{ mb: 2 }}>{error}</Alert>}
+
+          <Box sx={{ mb: 3 }} className="no-print">
+            <Typography variant="h6" gutterBottom>Upload Resume</Typography>
+            <Box display="flex" alignItems="center" gap={2}>
+              <input
+                accept=".pdf,.docx"
+                style={{ display: 'none' }}
+                id="resume-upload"
+                type="file"
+                onChange={handleFileChange}
+              />
+              <label htmlFor="resume-upload">
+                <Button variant="contained" component="span" startIcon={<FileUploadIcon />}>
+                  Choose File
+                </Button>
+              </label>
+              <Typography>{file ? file.name : 'No file selected'}</Typography>
+              <Button 
+                variant="contained" 
+                color="primary" 
+                onClick={handleUpload}
+                disabled={!file}
+              >
+                Upload
+              </Button>
+            </Box>
+          </Box>
+
+          <Box sx={{ mb: 3 }} className="no-print">
+            <Button 
+              variant="contained" 
+              color="success" 
+              startIcon={<SaveIcon />}
+              onClick={handleSaveResume}
+              sx={{ mr: 2 }}
+            >
+              Save Resume
+            </Button>
+            <Button 
+              variant="contained" 
+              color="secondary" 
+              startIcon={<DownloadIcon />}
+              onClick={handleDownload}
+            >
+              Download Resume
+            </Button>
+          </Box>
+
+          <Paper ref={resumeRef} sx={{ p: 3, mb: 3 }}>
+            <Box sx={{ mb: 3 }}>
+              <Box display="flex" alignItems="center" gap={2}>
+                <TextField
+                  label="Full Name"
+                  variant="outlined"
+                  fullWidth
+                  value={resume.name}
+                  onChange={(e) => setResume({...resume, name: e.target.value})}
+                />
+                <Button 
+                  variant="outlined" 
+                  startIcon={<AutoFixHighIcon />}
+                  onClick={() => handleEnhanceSection('name')}
+                >
+                  Enhance
+                </Button>
+              </Box>
+            </Box>
+
+            <Box sx={{ mb: 3 }}>
+              <Typography variant="h6" gutterBottom>Summary</Typography>
+              <Box display="flex" gap={2}>
+                <TextField
+                  label="Professional Summary"
+                  variant="outlined"
+                  multiline
+                  rows={4}
+                  fullWidth
+                  value={resume.summary}
+                  onChange={(e) => setResume({...resume, summary: e.target.value})}
+                />
+                <Button 
+                  variant="outlined" 
+                  startIcon={<AutoFixHighIcon />}
+                  onClick={() => handleEnhanceSection('summary')}
+                  sx={{ alignSelf: 'flex-start' }}
+                >
+                  Enhance
+                </Button>
+              </Box>
+            </Box>
+
+            <Divider sx={{ my: 3 }} />
+
+            <Box sx={{ mb: 3 }}>
+              <Typography variant="h6" gutterBottom>Experience</Typography>
+              <List>
+                {resume.experience.map((exp, index) => (
+                  <ListItem 
+                    key={index}
+                    secondaryAction={
+                      <IconButton 
+                        edge="end" 
+                        onClick={() => handleRemoveItem('experience', index)}
+                        className="no-print"
+                      >
+                        <DeleteIcon />
+                      </IconButton>
+                    }
+                  >
+                    <ListItemText primary={exp} />
+                  </ListItem>
+                ))}
+              </List>
+              <Box display="flex" gap={2} className="no-print">
+                <TextField
+                  label="Add Experience"
+                  variant="outlined"
+                  fullWidth
+                  value={newExperience}
+                  onChange={(e) => setNewExperience(e.target.value)}
+                />
+                <Button 
+                  variant="contained" 
+                  startIcon={<AddIcon />}
+                  onClick={handleAddExperience}
+                >
+                  Add
+                </Button>
+              </Box>
+            </Box>
+
+            <Divider sx={{ my: 3 }} />
+
+            <Box sx={{ mb: 3 }}>
+              <Typography variant="h6" gutterBottom>Education</Typography>
+              <List>
+                {resume.education.map((edu, index) => (
+                  <ListItem 
+                    key={index}
+                    secondaryAction={
+                      <IconButton 
+                        edge="end" 
+                        onClick={() => handleRemoveItem('education', index)}
+                        className="no-print"
+                      >
+                        <DeleteIcon />
+                      </IconButton>
+                    }
+                  >
+                    <ListItemText primary={edu} />
+                  </ListItem>
+                ))}
+              </List>
+              <Box display="flex" gap={2} className="no-print">
+                <TextField
+                  label="Add Education"
+                  variant="outlined"
+                  fullWidth
+                  value={newEducation}
+                  onChange={(e) => setNewEducation(e.target.value)}
+                />
+                <Button 
+                  variant="contained" 
+                  startIcon={<AddIcon />}
+                  onClick={handleAddEducation}
+                >
+                  Add
+                </Button>
+              </Box>
+            </Box>
+
+            <Divider sx={{ my: 3 }} />
+
+            <Box sx={{ mb: 3 }}>
+              <Typography variant="h6" gutterBottom>Skills</Typography>
+              <List dense sx={{ display: 'flex', flexWrap: 'wrap', gap: 1 }}>
+                {resume.skills.map((skill, index) => (
+                  <ListItem 
+                    key={index}
+                    sx={{ 
+                      width: 'auto', 
+                      bgcolor: 'primary.light', 
+                      color: 'primary.contrastText',
+                      borderRadius: 1,
+                      py: 0
+                    }}
+                    secondaryAction={
+                      <IconButton 
+                        edge="end" 
+                        size="small"
+                        onClick={() => handleRemoveItem('skills', index)}
+                        sx={{ color: 'primary.contrastText' }}
+                        className="no-print"
+                      >
+                        <DeleteIcon fontSize="small" />
+                      </IconButton>
+                    }
+                  >
+                    <ListItemText primary={skill} />
+                  </ListItem>
+                ))}
+              </List>
+              <Box display="flex" gap={2} className="no-print">
+                <TextField
+                  label="Add Skill"
+                  variant="outlined"
+                  fullWidth
+                  value={newSkill}
+                  onChange={(e) => setNewSkill(e.target.value)}
+                />
+                <Button 
+                  variant="contained" 
+                  startIcon={<AddIcon />}
+                  onClick={handleAddSkill}
+                >
+                  Add
+                </Button>
+              </Box>
+            </Box>
+          </Paper>
+        </Box>
+      </Container>
+    </>
+  );
+}
+
+export default App;
